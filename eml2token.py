@@ -1,4 +1,6 @@
 
+from __future__ import print_function
+
 #import io
 #import os
 import sys
@@ -9,6 +11,7 @@ import sys
 import re
 import traceback
 
+
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
@@ -17,32 +20,65 @@ import email
 import codecs
 import unicodedata
 
-from html2text import HTML2Text
+
+from htmlentitydefs import name2codepoint
+
+#def html_unescape1(tag):
+#  try:
+#    return unichr(name2codepoint[tag])
+#  except:
+#    return "?"
+
+HTML_RE = re.compile(r'&([^;]+);')
 
 try:
-  # Python 2.6-2.7 
-  from HTMLParser import HTMLParser
-except ImportError:
-  # Python 3
-  from html.parser import HTMLParser
+    unichr
+except NameError:
+    unichr = chr
 
-html_parser = HTMLParser()
+def html_unescape(mystring):
+#  return re.sub('&([^;]+);', lambda m: unichr(name2codepoint[m.group(1)]), mystring)
+#  return re.sub('&([^;]+);', lambda m: html_unescape1(m.group(1)), mystring)
+#  return HTML_RE.sub(lambda m: html_unescape1(m.group(1)), mystring)
+  return HTML_RE.sub(lambda m: unichr(name2codepoint.get(m.group(1),63)), mystring)
+
 
 def html2text(data):
-    #text_maker = html2text.HTML2Text()
-    text_maker = HTML2Text()
-    #help(text_maker)
-    text_maker.ignore_links = True
-    text_maker.ignore_images = True
-    text_maker.ignore_anchors = True
-    text_maker.ignore_links = True
-    text_maker.unicode_snob = True
-    text_maker.body_width = 0
-    text_maker.decode_errors = "ignore"
-    text_maker.bypass_tables = False
-#    return text_maker.handle(text_maker.unescape(data))
-    return text_maker.handle(data)
-#    return text_maker.unescape(data)
+  in_style=0
+  in_script=0
+  text=""
+  for ret in data.split("<"):
+    try:
+      tag,txt=ret.split(">",1)
+    except:
+      text+=ret
+      continue
+#      print(ret.encode("utf-8"))
+#      break
+    try:
+      tag1=tag.split()[0].lower()
+    except:
+#      print("TAG parse error: '%s'"%(tag))
+      tag1=""
+    if tag1=="style":
+      in_style+=1
+    if tag1=="/style":
+      in_style-=1
+    if tag1=="script":
+      in_script+=1
+    if tag1=="/script":
+      in_script-=1
+#    print(tag1)
+#    print(text)
+    if in_style<=0 and in_script<=0:
+      if tag1=="p" or tag1=="br" or tag1=="td" or tag1=="div" or tag1=="li":
+        text+="\n"
+      text+=txt
+
+#  print(text.encode("utf-8"))
+  return text
+
+
 
 #last_position = -1
 
@@ -67,26 +103,36 @@ def mixed_decoder(unicode_error):
 
 codecs.register_error("mixed", mixed_decoder)
 
+
 TAG_RE1 = re.compile(r'<[^>]+>')
 TAG_RE2 = re.compile(r'\[[^[]+\]')
 TAG_RE3 = re.compile(r'https? ?: ?//[-._a-zA-Z0-9/?&=]*')
-TAG_RE4 = re.compile(r'[-+$_.a-z0-9]*@[-.a-z0-9]*.[a-z][a-z]*')
+#TAG_RE4 = re.compile(r'[-+$_.a-z0-9]*@[-.a-z0-9]*.[a-z][a-z]*')
+TAG_RE4 = re.compile(r'[-+$_.a-z0-9]*@[-.a-z0-9]*\.[a-z][a-z]*')
 TAG_RE5 = re.compile(r'$[0-9][0-9]*')
 TAG_RE6 = re.compile(r'[-0-9a-z][-0-9a-z][-0-9a-z]*\.[-0-9a-z][-0-9a-z][-0-9a-z]*\.[-0-9a-z][-0-9a-z][-0-9a-z]?')
 
 def remove_url(text):
     text=TAG_RE3.sub('httpurl', text)
-    text=TAG_RE5.sub('dollarandnumber', text)
+    text=TAG_RE4.sub('emailaddress', text)
     text=TAG_RE6.sub('domainname', text)
-    return TAG_RE4.sub('emailaddress', text)
+    text=TAG_RE5.sub('dollarandnumber', text)
+    return text
+
+
+
 
 def remove_accents(input_str):
+    s0=input_str.encode('ASCII', 'ignore')
+    if input_str==s0.decode('ASCII', 'ignore'):
+        return s0
     try:
         nfkd_form = unicodedata.normalize('NFKD', input_str)
         return nfkd_form.encode('ASCII', 'ignore')
 #        return nfkd_form
     except:
-        return input_str.encode('ASCII', 'ignore')
+#        return input_str.encode('ASCII', 'ignore')
+        return s0
 
 
 def replaceEntities(s):
@@ -120,7 +166,7 @@ def eml2str(msg):
   elif type(msg)==str:
     msg = email.message_from_string(msg)
   elif type(msg)!=email.message.Message:
-    print(type(msg))
+    eprint(type(msg))
 
   text = []
   #pp = msg.get_payload()
@@ -138,6 +184,10 @@ def eml2str(msg):
       charset="iso-8859-8"
     elif charset=="windows-874":
       charset="cp874"
+    elif charset=="x-mac-ce":
+      charset="maccentraleurope"
+    elif charset[0:4]=="utf8":
+      charset="utf-8"
     ctyp=p.get_content_type().lower()
     disp=p.get_content_disposition()
 #    print((ctyp,disp,charset))
@@ -146,11 +196,19 @@ def eml2str(msg):
 #      if ctyp.find("rfc")>=0:
 #        continue
       try:
-        data=p.get_payload(decode=True).decode(charset, 'mixed').lower()
+        data=p.get_payload(decode=True)
+        try:
+          data=data.decode(charset, 'mixed')
+        except:
+          data=data.decode("utf-8", 'mixed')
         data=xmldecode(data) # plaintextre is rafer...
-        if ctyp=="text/html" or ctyp=="text/xml" or data.find('<')>=0 and (data.find("<body")>=0 or data.find("<img")>=0 or data.find("<style")>=0 or data.find("<center")>=0 or data.find("<a href")>=0):
+        ldata=data.lower()
+        if ctyp=="text/html" or ctyp=="text/xml" or data.find('<')>=0 and (ldata.find("<body")>=0 or ldata.find("<img")>=0 or ldata.find("<style")>=0 or ldata.find("<center")>=0 or ldata.find("<a href")>=0):
 #          print(data.encode("iso8859-2"))
 #          print("parsing html...")
+          p=ldata.find("<body")
+          if p>0:
+            data=data[p:]
           data=html2text(data)
           text.append(data)
         elif ctyp=="text/plain":
@@ -161,18 +219,19 @@ def eml2str(msg):
 
 
 
-def tokenize(s,vocab):
+def tokenize(s,vocab,minlen=4):
     ss=""
     tokens=[]
     vtokens=[]
 #    print(s.encode("utf-8"))
     s=remove_url(s)
-    s=html_parser.unescape(s)
+#    s=html_parser.unescape(s)
+    s=html_unescape(s)
 #    print(s.encode("utf-8"))
-    #s1=s.encode('ASCII', 'ignore').decode('ASCII', 'ignore')
-    #if s==s1:
-    #  s=s.lower()
-    #else:
+#    s1=s.encode('ASCII', 'ignore').decode('ASCII', 'ignore')
+#    if s==s1:
+#      s=s.lower()
+#    else:
     s=remove_accents(s).decode('ASCII', 'ignore').lower()
 #    print(type(s))
 #    s=str(s)
@@ -209,7 +268,7 @@ def tokenize(s,vocab):
         # not number :)
 #        t=t.lower()
       tokens.append(t)
-      if len(t)>=4:
+      if len(t)>=minlen:
         if t in vocab:
           vtokens.append(t)
 

@@ -52,12 +52,25 @@ def dedup(tokens,hl,nn):
 #	print str(label)+" "+" ".join(tokens)
         return 0
 
+def dedup1(tokens):
+        w=" ".join(tokens)
+        wh=hash(w)
+        wh^=(wh>>40)
+        wh&=maxhash
+#            print(wh)
+#            try:
+        if wmem[wh>>3] & (1<<(wh&7)):
+            return 0
+        wmem[wh>>3]|=(1<<(wh&7))
+        return 1
+
+
 #################################################################################################################################################################
 
 
 
 def do_eml(eml,out_txt):
-    print("Parsing email (%d bytes)"%(len(eml)))
+#    print("Parsing email (%d bytes)"%(len(eml)))
     vtokens=[]
     tokens=[]
     for text in eml2str(eml):
@@ -82,8 +95,9 @@ def do_eml(eml,out_txt):
         return 0
 
 #    ok=dedup(vtokens,5,(len(vtokens)-10)/3)
-    ok=dedup(vtokens,7,(len(vtokens)-10)*4/5)
-    print(ok)
+#    ok=dedup(vtokens,7,(len(vtokens)-10)*4/5)
+    ok=dedup1(vtokens)
+#    print(ok)
     if ok:
 #        print(" ".join(tokens)+"\n")
         out_txt.write(" ".join(tokens)+"\n")
@@ -104,8 +118,8 @@ def do_eml(eml,out_txt):
 #input_stream = sys.stdin
 #output_stream = sys.stdout
 #output_txt = open("maildedup.txt","wt",encoding="utf-8",errors='ignore')
+input_stream= open(sys.argv[1],"rb")
 output_stream= open("maildedup.mbox","wb")
-input_stream= open("test.input","rb")
 output_txt = open("maildedup.txt","w")
 
 in_hdr=0

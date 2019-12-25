@@ -150,13 +150,15 @@ class deepspamMilter(Milter.Milter):
 
 
 # TESTING
-fp=open("milter.eml","rb")
-#msg = mime.message_from_file(fp)
-#print(type(fp))
-msg = email.message_from_binary_file(fp)
-res=do_eml(msg)
-print("X-deepspam: "+res)
-
+try:
+  fp=open("milter.eml","rb")
+  #msg = mime.message_from_file(fp)
+  #print(type(fp))
+  msg = email.message_from_binary_file(fp)
+  res=do_eml(msg)
+  print("X-deepspam: "+res)
+except:
+  print("missing/bad milter.eml -> skip self-test")
 
 # MILTER MODE
 Milter.factory = deepspamMilter
