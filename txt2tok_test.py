@@ -71,12 +71,16 @@ output_stream=io.open(sys.argv[1]+".TOK","wt",encoding="utf-8")
 
 for line in input_stream:
 #  t=" ".join(line.replace('"',' ').split())
-  vtok,tok=tokenize(line,wordmap)
-  if len(vtok)<5 or len(tok)<20:
+  if line[0]==":":
+    output_stream.write(line.strip()+"\n")
     continue
-  ok=dedup(tok,7,(len(tok)-10)*4/5)
+  vtok,tok=tokenize(line,wordmap)
+#  if len(vtok)<5 or len(tok)<20:
+#    continue
+#  ok=dedup(tok,7,(len(tok)-10)*4/5)
 #  print("%4d /%4d   -> %d"%(len(vtok),len(tok),ok))
-  if ok:
-    output_stream.write(unicode(" ".join(tok)+"\n"))
+#  if ok:
+  ostr=" ".join(tok)+"\n"
+  output_stream.write(unicode(ostr))
 
 output_stream.close()

@@ -1,7 +1,7 @@
 
 from __future__ import print_function
 
-#import io
+import io
 #import os
 import sys
 
@@ -18,29 +18,39 @@ def eprint(*args, **kwargs):
 
 import email
 import codecs
-import unicodedata
 
 
 from htmlentitydefs import name2codepoint
 
-#def html_unescape1(tag):
-#  try:
-#    return unichr(name2codepoint[tag])
-#  except:
-#    return "?"
-
 HTML_RE = re.compile(r'&([^;]+);')
 
 try:
-    unichr
+  unichr
 except NameError:
-    unichr = chr
+  unichr = chr
 
 def html_unescape(mystring):
-#  return re.sub('&([^;]+);', lambda m: unichr(name2codepoint[m.group(1)]), mystring)
-#  return re.sub('&([^;]+);', lambda m: html_unescape1(m.group(1)), mystring)
-#  return HTML_RE.sub(lambda m: html_unescape1(m.group(1)), mystring)
   return HTML_RE.sub(lambda m: unichr(name2codepoint.get(m.group(1),63)), mystring)
+
+def replaceEntities(s):
+    x = s.group(0)
+    s = s.group(1)
+#    print(x)
+#    print(s)
+    if s[0] == "#":
+        if s[1] in ['x','X']:
+            c = int(s[2:], 16)
+        else:
+            c = int(s[1:])
+        if c>=128: # ekezetes karakter, nem irasjel
+            return unichr(c) # python3-ban chr()
+    return x # beken hagyjuk
+
+#    r_unescape = re.compile(r"&(#?[xX]?(?:[0-9a-fA-F]+|\w{1,8}));") # ez erre is matchel:   &nbsp;
+r_unescape = re.compile(r"&(#[xX]?[0-9a-fA-F]+);") # de nekunk csak az ekezetes betu unikodok kellenek!
+
+def xmldecode(data):
+  return r_unescape.sub(replaceEntities, data)
 
 
 def html2text(data):
@@ -80,25 +90,12 @@ def html2text(data):
 
 
 
-#last_position = -1
-
 def mixed_decoder(unicode_error):
-#    global last_position
     position = unicode_error.start
-#    if position <= last_position:
-#        position = last_position + 1
-#    last_position = position
-#    new_char = string[position]
-#    print(position)
-#    print(type(string))
-#    new_char = bytes(string[position])
     new_char = unicode_error.object[position:position+1]
-#    print(type(new_char))
-#    print(len(new_char))
     new_char = new_char.decode("iso8859-2","ignore")
 #    print(type(new_char))
 #    print(len(new_char))
-    #new_char = u"_"
     return new_char, position + 1
 
 codecs.register_error("mixed", mixed_decoder)
@@ -107,7 +104,6 @@ codecs.register_error("mixed", mixed_decoder)
 TAG_RE1 = re.compile(r'<[^>]+>')
 TAG_RE2 = re.compile(r'\[[^[]+\]')
 TAG_RE3 = re.compile(r'https? ?: ?//[-._a-zA-Z0-9/?&=]*')
-#TAG_RE4 = re.compile(r'[-+$_.a-z0-9]*@[-.a-z0-9]*.[a-z][a-z]*')
 TAG_RE4 = re.compile(r'[-+$_.a-z0-9]*@[-.a-z0-9]*\.[a-z][a-z]*')
 TAG_RE5 = re.compile(r'$[0-9][0-9]*')
 TAG_RE6 = re.compile(r'[-0-9a-z][-0-9a-z][-0-9a-z]*\.[-0-9a-z][-0-9a-z][-0-9a-z]*\.[-0-9a-z][-0-9a-z][-0-9a-z]?')
@@ -120,41 +116,32 @@ def remove_url(text):
     return text
 
 
-
+confusables={}
 
 def remove_accents(input_str):
-    s0=input_str.encode('ASCII', 'ignore')
-    if input_str==s0.decode('ASCII', 'ignore'):
-        return s0
-    try:
-        nfkd_form = unicodedata.normalize('NFKD', input_str)
-        return nfkd_form.encode('ASCII', 'ignore')
-#        return nfkd_form
-    except:
-#        return input_str.encode('ASCII', 'ignore')
-        return s0
+    if len(confusables)==0:
+        try:
+            # try to load unicodes.map from file
+            for line in io.open("unicodes.map","rt",encoding="utf-8",errors="ignore"):
+                l=line.rstrip("\n\r").split("\t",1)
+                confusables[ord(l[0])]=l[1]
+            eprint("%d entries loaded from unicodes.map file" %(len(confusables)))
+        except:
+            # generate it with normalize() (without confusables...)
+            import unicodedata
+            for ic in range(128,0x20000):
+                nfkd_form = unicodedata.normalize('NFKD', chr(ic))
+                oc=nfkd_form.encode('ASCII', 'ignore').decode('ASCII', 'ignore')
+                if (oc and oc!=chr(ic) and oc!="()"):
+                    confusables[ic]=oc
+            confusables[215]='x'
+            confusables[216]='O' # athuzott 'O' betu
+            confusables[248]='o' # athuzott 'o' betu
+            confusables[223]='ss' # nemet
+            eprint("%d entries generated from unicodedata.normalize" %(len(confusables)))
+    return "".join(confusables.get(ord(x),"") if ord(x)>=128 else x for x in input_str)
 
 
-def replaceEntities(s):
-    x = s.group(0)
-    s = s.group(1)
-#    print(x)
-#    print(s)
-    if s[0] == "#":
-        if s[1] in ['x','X']:
-            c = int(s[2:], 16)
-        else:
-            c = int(s[1:])
-        if c>=128: # ekezetes karakter, nem irasjel
-#            return unichr(c) # python 2.x ?
-            return chr(c) #Python3
-    return x # beken hagyjuk
-
-#    r_unescape = re.compile(r"&(#?[xX]?(?:[0-9a-fA-F]+|\w{1,8}));") # ez erre is matchel:   &nbsp;
-r_unescape = re.compile(r"&(#[xX]?[0-9a-fA-F]+);") # de nekunk csak az ekezetes betu unikodok kellenek!
-
-def xmldecode(data):
-    return r_unescape.sub(replaceEntities, data)
 
 #    xmlcharref = Regex(r'&#\d+;')
 #    xmlcharref.setParseAction(lambda t: '\\u' + hex(int(t[0][2:-1]))[2:]) 
@@ -232,7 +219,8 @@ def tokenize(s,vocab,minlen=4):
 #    if s==s1:
 #      s=s.lower()
 #    else:
-    s=remove_accents(s).decode('ASCII', 'ignore').lower()
+#    s=remove_accents(s).decode('ASCII', 'ignore').lower()
+    s=remove_accents(s).lower()
 #    print(type(s))
 #    s=str(s)
 #    print(s.encode("utf-8"))
@@ -255,6 +243,7 @@ def tokenize(s,vocab,minlen=4):
 #        elif c!=lastc and c in ['!',',',';',':','.']:
         elif c!=lastc and c in ['!',';','.']:
             ss+=' '+c+' '
+#        elif (c<'0' or c>'9') and c!='-' and c!='_' and c!="'":  # aposztrof kell az angol didn't stb miatt...
         elif (c<'0' or c>'9') and c!='-' and c!='_':
             ss+=' '
         lastc=c

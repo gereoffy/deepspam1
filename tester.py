@@ -38,12 +38,12 @@ def do_eml(eml):
     res=deepspam_test(vtokens)
     res+=0.1
     print(res)
-#    try:
-#        f=open("deepspam.test","at")
-#        f.write("%3d%%:"%(res)+" ".join(tokens)+"\n")
-#        f.close()
-#    except:
-#        pass
+    try:
+        f=open("test_res","at")
+        f.write("%3d%%:"%(res)+" ".join(tokens)+"\n")
+        f.close()
+    except:
+        pass
     if res<=10:
         return "ham-%d"%(res)
     if res<20:

@@ -8,7 +8,10 @@ import traceback
 
 from eml2token import eml2str,tokenize,eprint
 
-wordmap=pickle.load(open("model/model.wordmap", "rb"))
+try:
+    wordmap=pickle.load(open("model/model.wordmap-py3", "rb"))
+except:
+    wordmap=pickle.load(open("model/model.wordmap-py2", "rb"))
 
 ###########################################################################################################
 ################################################### DEDUP #################################################
@@ -94,9 +97,9 @@ def do_eml(eml,out_txt):
     if len(vtokens)<10:
         return 0
 
-#    ok=dedup(vtokens,5,(len(vtokens)-10)/3)
+    ok=dedup(vtokens,5,(len(vtokens)-10)/3)
 #    ok=dedup(vtokens,7,(len(vtokens)-10)*4/5)
-    ok=dedup1(vtokens)
+#    ok=dedup1(vtokens)
 #    print(ok)
     if ok:
 #        print(" ".join(tokens)+"\n")

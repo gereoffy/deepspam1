@@ -6,10 +6,7 @@ import sys
 import pickle
 import traceback
 
-from eml2token import eml2str,tokenize,eprint,html_unescape
-
-#wordmap=pickle.load(open("model/model.wordmap", "rb"))
-
+from eml2token import eml2str,tokenize,eprint,html_unescape,remove_accents
 
 
 def do_eml(eml,out_txt):
@@ -18,6 +15,8 @@ def do_eml(eml,out_txt):
     tokens=[]
     for text in eml2str(eml):
 #      print(text.encode("utf-8"))
+      print(text)
+      print(remove_accents(text))
       if text.find('pam detection software, running on the system')>=0:
         continue
       for t in ["-----","_____",".....","From:","Forwarded","Felad"]:

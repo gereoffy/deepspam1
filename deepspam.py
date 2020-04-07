@@ -5,6 +5,9 @@ import os
 import errno
 import mimetypes
 import traceback
+#import mime
+import Milter
+
 
 try:
   from io import BytesIO
@@ -16,9 +19,6 @@ from eml2token import eml2str,tokenize,eprint
 
 from ds_model import deepspam_load,deepspam_test
 wordmap=deepspam_load()
-
-#import mime
-import Milter
 
 ############################################################################################################################################
 
@@ -99,10 +99,13 @@ class deepspamMilter(Milter.Milter):
         self.reject=1
     if self.fp:
       try:
-        self.fp.write(("%s: %s\n" % (name,val)).encode())
+        self.fp.write(("%s: %s\n" % (name,val)).encode())  # python2, sima utf8. py2 alatt elvileg tamogatott a surrogate is, de azt ugyis csak az unreleased pymilter tudja
       except:
-        eprint("DEEPSPAM: Exception at header(%s) !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"%(name))
-        eprint(traceback.format_exc())
+        try:
+          self.fp.write(("%s: %s\n" % (name,val)).encode(encoding='ascii',errors='surrogateescape'))  # python3,  speci (surrogate escaped) utf8 ami 8 bites asciit tarol
+        except:
+          eprint("DEEPSPAM: Exception at header(%s) !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"%(name))
+          eprint(traceback.format_exc())
     return Milter.CONTINUE
 
   def eoh(self):
@@ -121,8 +124,10 @@ class deepspamMilter(Milter.Milter):
     try:
       self.fp.seek(0)
       print("PARSING %d body chars" % self.bodysize)
-      #msg = mime.message_from_file(self.fp)
-      msg = email.message_from_binary_file(self.fp)
+      try:
+        msg = email.message_from_binary_file(self.fp) # python 3.2+
+      except:
+        msg = email.message_from_file(self.fp) # python2
       res=do_eml(msg)
       print("X-deepspam: "+res)
       self.addheader("X-deepspam",res)
@@ -154,11 +159,14 @@ try:
   fp=open("milter.eml","rb")
   #msg = mime.message_from_file(fp)
   #print(type(fp))
-  msg = email.message_from_binary_file(fp)
+  try:
+    msg = email.message_from_binary_file(fp)
+  except:
+    msg = email.message_from_file(fp)
   res=do_eml(msg)
   print("X-deepspam: "+res)
 except:
-  print("missing/bad milter.eml -> skip self-test")
+  print("missing/bad milter.eml -> skipping self-test!")
 
 # MILTER MODE
 Milter.factory = deepspamMilter
