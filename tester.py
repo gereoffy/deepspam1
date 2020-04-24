@@ -85,3 +85,5 @@ for line in input_stream:
         eml=line
 #if eml:
 #    do_eml(eml)
+
+deepspam_exit()

@@ -206,7 +206,7 @@ def eml2str(msg):
 
 
 
-def tokenize(s,vocab,minlen=4):
+def tokenize(s,vocab,minlen=1):
     ss=""
     tokens=[]
     vtokens=[]

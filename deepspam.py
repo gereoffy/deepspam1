@@ -1,5 +1,14 @@
 #! /usr/bin/python3
 
+
+###
+### DeepSpam milter filter
+###
+### Ez a regi verzio, ami pymilter-re epul, ami a libmilter C wrappere.
+### Python3 eseten az 1.0.4 verzio nem jo, mert az meg nem tamogatja a 8 bites fejleceket, csak a github-os kod: https://github.com/sdgathman/pymilter
+###
+
+
 import sys
 import os
 import errno
@@ -17,7 +26,7 @@ except:
 import email
 from eml2token import eml2str,tokenize,eprint
 
-from ds_model import deepspam_load,deepspam_test
+from ds_model_queue import deepspam_load,deepspam_test
 wordmap=deepspam_load()
 
 ############################################################################################################################################
