@@ -97,8 +97,8 @@ def do_eml(eml,out_txt):
     if len(vtokens)<10:
         return 0
 
-    ok=dedup(vtokens,5,(len(vtokens)-10)/3)
-#    ok=dedup(vtokens,7,(len(vtokens)-10)*4/5)
+#    ok=dedup(vtokens,5,(len(vtokens)-10)/3)
+    ok=dedup(vtokens,7,(len(vtokens)-10)*4/5)
 #    ok=dedup1(vtokens)
 #    print(ok)
     if ok:
@@ -122,8 +122,8 @@ def do_eml(eml,out_txt):
 #output_stream = sys.stdout
 #output_txt = open("maildedup.txt","wt",encoding="utf-8",errors='ignore')
 input_stream= open(sys.argv[1],"rb")
-output_stream= open("maildedup.mbox","wb")
-output_txt = open("maildedup.txt","w")
+output_stream= open(sys.argv[1]+".out","wb")
+output_txt = open(sys.argv[1]+".txt","w")
 
 in_hdr=0
 eml=None
