@@ -5,8 +5,14 @@ import os
 import sys
 import pickle
 import traceback
+import email
 
 from eml2token import eml2str,tokenize,eprint,html_unescape,remove_accents
+
+try:
+  from io import BytesIO
+except:
+  from StringIO import StringIO as BytesIO
 
 
 def do_eml(eml,out_txt):
@@ -15,8 +21,8 @@ def do_eml(eml,out_txt):
     tokens=[]
     for text in eml2str(eml):
 #      print(text.encode("utf-8"))
-      print(text)
-      print(remove_accents(text))
+#      print(text)
+#      print(remove_accents(text))
       if text.find('pam detection software, running on the system')>=0:
         continue
       for t in ["-----","_____",".....","From:","Forwarded","Felad"]:
@@ -75,25 +81,33 @@ output_txt = open("maildedup.txt","w")
 
 in_hdr=0
 eml=None
+lineno=0
 for line in input_stream:
+    lineno+=1
     if in_hdr:
 #	eml+=line
         if len(line.rstrip())==0:
             in_hdr=0
     elif line[0:5]==b'From ':
-#        print(line)
         if eml:
-            res=do_eml(eml,output_txt)
+#            print("line=%d size=%d"%(lineno,eml.tell()))
+            eml.seek(0)
+            try:
+                msg = email.message_from_binary_file(eml) # python 3.2+
+            except:
+                msg = email.message_from_file(eml) # python2
+            res=do_eml(msg,output_txt)
 #            if res:
 #                output_stream.write(eml)
+            eml.close()
             eml=None
         in_hdr=1
     if eml:
-        eml+=line
+        eml.write(line)
     else:
-        eml=line
-if eml:
-    res=do_eml(eml,output_txt)
+        eml=BytesIO(line)
+#if eml:
+#    res=do_eml(eml,output_txt)
 #    if res:
 #        output_stream.write(eml)
 
