@@ -256,7 +256,13 @@ class MainServerSocket(asyncore.dispatcher):
     print('initing MSS')
     asyncore.dispatcher.__init__(self)
     self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
-    self.bind(('',port))
+    while True:
+      try:
+        self.bind(('',port))
+        break
+      except:
+        time.sleep(1)
+      continue
     self.listen(5)
   def handle_accept(self):
     newSocket, address = self.accept( )
