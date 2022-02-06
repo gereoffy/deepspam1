@@ -67,6 +67,11 @@ def hdrdecode(h):
 from htmlentitydefs import name2codepoint
 
 HTML_RE = re.compile(r'&([^;]+);')
+HTML_comment = re.compile(r'<!--.*-->',re.DOTALL)
+HTML_color = re.compile(r'[^-]color:#ffff*[^0-9a-f]')
+HTML_fontsize = re.compile(r'font-size:[0-5]px')
+
+#HTML_color = re.compile(r'color')
 
 try:
   unichr
@@ -100,6 +105,19 @@ def xmldecode(data):
 def html2text(data):
   in_style=0
   in_script=0
+
+
+#  data=HTML_comment.sub("<comment>",data)
+  p=data.find("<!--")
+  while p>=0:
+    q=data.find("-->",p)
+    if q<p:
+      data=data[:p]
+      break
+    data=data[:p]+" HTMLcomment "+data[q+3:]
+    p=data.find("<!--",p)
+
+
   text=""
   for ret in data.split("<"):
     try:
@@ -109,6 +127,7 @@ def html2text(data):
       continue
 #      print(ret.encode("utf-8"))
 #      break
+#    print("TAG: '%s'"%(tag))
     try:
       tag1=tag.split()[0].lower()
     except:
@@ -125,11 +144,18 @@ def html2text(data):
 #    print(tag1)
 #    print(text)
     if in_style<=0 and in_script<=0:
+      if tag1 in ["p","span","div"]:
+#        print(tag.lower())
+        if HTML_color.search(tag.lower()+";"):
+          text+="\nHTMLhiddenWHITE:"
+        if HTML_fontsize.search(tag.lower()):
+          text+="\nHTMLhiddenFONTSIZE:"
       if tag1=="p" or tag1=="br" or tag1=="td" or tag1=="div" or tag1=="li":
         text+="\n"
       text+=txt
 
 #  print(text.encode("utf-8"))
+#  print(text)
   return text
 
 
@@ -244,10 +270,10 @@ def eml2str(msg):
 #          print(data.encode("iso8859-2"))
 #          print("parsing html...")
           p=ldata.find("<body")
-          if p>0:
-            data=data[p:]
+          if p>0: data=data[p:]
           data=html2text(data)
-          text.append(data)
+#          text.append(data)
+          text=[data]     ### FIXME!?   prefer html over txt!
         elif ctyp=="text/plain":
           text.append(data)
         if textlen<len(data):
@@ -306,7 +332,7 @@ def eml2str(msg):
 #              print("TNEF.rtf:  %d" %(len(tnefobj.rtfbody)))
               s = rtf_to_text(tnefobj.rtfbody.decode(tnefcp,"ignore"))
         t0=time.time()-t0
-        print(s)
+#        print(s)
         if len(s)>50:
           eprint("parsed: %d chars, %d ms"%(len(s),t0*1000))
           text.append(s)
