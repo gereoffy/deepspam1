@@ -31,7 +31,7 @@ from eml2token import eml2str,tokenize,eprint
 from ds_model import deepspam_load,deepspam_test
 wordmap=deepspam_load()
 
-def do_eml(msg):
+def do_eml(msg,addr):
 #  # jobb ha bytes-ban kapja meg a raw levelet, mert az utf8 karakterek kulonben elcseszodhetnek! pl. sql_0000022480.eml ahol keverve van htmlentity es utf8 text/plain-ben!
 #  if type(eml)==bytes:
 #    msg = email.message_from_bytes(eml)
@@ -55,14 +55,16 @@ def do_eml(msg):
             tokens=tok
         except:
           eprint(traceback.format_exc())
-    print("NUM of tokens: %d / %d"%(len(vtokens),len(tokens)))
+#    print('%3d  %22s  Connect'%(thread_cnt, self.addrs) )
+    print("---  %22s  tokens: %d / %d"%(addr,len(vtokens),len(tokens)))
     if len(vtokens)<10:
         return "toosmall"
 
 #    print(" ".join(vtokens))
     res=deepspam_test(vtokens)
     res+=0.1
-    print(res)
+    print("---  %22s  result: %8.5f"%(addr,res))
+#    print(res)
 #    print("%d%%"%(res))
     try:
         f=open("deepspam.res","at")
@@ -96,6 +98,11 @@ class MyHandler(ppymilterbase.PpyMilter):
 #        super().__init__()
 #        CanChangeHeaders(self)
 
+    def __init__(self,context=None):
+        self.addr=context
+#        print("MyHandler.init!  ip="+str(context))
+        super().__init__()
+
     def OnOptNeg(self, cmd, ver, actions, protocol):
         self.CanAddHeaders()
         self.emlcount=0
@@ -106,6 +113,7 @@ class MyHandler(ppymilterbase.PpyMilter):
     def OnConnect(self, cmd, hostname, family, port, address):
 #        print(hostname)
 #        print(address)
+        print("---  %22s  address: %s"%(self.addr,str(address)))
         self.mailfrom = address
         return self.Continue()
 
@@ -114,7 +122,7 @@ class MyHandler(ppymilterbase.PpyMilter):
         return self.Continue()
 
     def OnResetState(self):
-#        print("ResetState called!")
+#        print("ResetState called!!!")
         self.fp = None
         self.bodysize = 0
         self.reject=0
@@ -122,6 +130,7 @@ class MyHandler(ppymilterbase.PpyMilter):
     def OnMailFrom(self, cmd, addr, esmtp_info):
         self.OnResetState()
         self.mailfrom = addr
+        print("---  %22s  sender: %s"%(self.addr,str(addr)))
 #        print(addr)
 #        print(esmtp_info)
         return self.Continue()
@@ -132,6 +141,8 @@ class MyHandler(ppymilterbase.PpyMilter):
         return self.Continue()
 
     def OnHeader(self, cmd, hdr, data):
+        if hdr==b'X-Grey-ng' or hdr==b'From':
+            print("---  %22s  %s: %s"%(self.addr,hdr.decode(),str(data)))
         if hdr==b'X-Grey-ng' and data[0:6]==b'REJECT':
             self.reject=1
 #        if self.fp:
@@ -160,18 +171,18 @@ class MyHandler(ppymilterbase.PpyMilter):
          t=time.time()
          self.fp.seek(0)
          msg = email.message_from_binary_file(self.fp) # python 3.2+
-         res=do_eml(msg)
+         res=do_eml(msg,self.addr)
          self.t=time.time()-t
          h=[]
          h.append(self.AddHeader('X-deepspam', res))
          h.append(self.Accept())
          return self.ReturnOnEndBodyActions(h)
 
-    def __del__(self):
+##    def __del__(self):
 #        print("__del__ called!")
 #        global thread_cnt
 #        thread_cnt-=1
-        print("__del__ called!     processed: %d (%5.3f)  from: %s"%(self.emlcount,self.t,self.mailfrom))
+##        print("__del__ called!     processed: %d (%5.3f)  from: %s"%(self.emlcount,self.t,self.mailfrom))
 
 
 
@@ -189,10 +200,15 @@ class SecondaryServerSocket(asynchat.async_chat):
     global thread_cnt
     thread_cnt+=1
     self.t0=time.time()
-    print('initing SSS -> %2d      %s'%(thread_cnt,str(addr)))
+    self.addrs=addr[0]+":"+str(addr[1])
+#    print('initing SSS -> %2d      %s'%(thread_cnt,str(addr)))
+    print('%3d  %22s  Connect'%(thread_cnt, self.addrs) )
+
 #    asynchat.async_chat.__init__(self, *args)
     asynchat.async_chat.__init__(self, sock)
-    self.__milter_dispatcher = ppymilterbase.PpyMilterDispatcher(MyHandler)
+#    self.ip,self.port=addr
+    self.__milter_dispatcher = ppymilterbase.PpyMilterDispatcher(MyHandler,context=self.addrs)
+#    self.__milter_dispatcher = ppymilterbase.PpyMilterDispatcher(MyHandler)
     self.data = None
     self.set_terminator(MILTER_LEN_BYTES)
     self.milterstate=False
@@ -203,7 +219,8 @@ class SecondaryServerSocket(asynchat.async_chat):
     global thread_cnt
     thread_cnt-=1
     t=time.time()-self.t0
-    print('freeing SSS -> %3d   time: %6.3f'%(thread_cnt,t))
+#    print('freeing SSS -> %3d   time: %6.3f'%(thread_cnt,t))
+    print('%3d  %22s  Done   %6.3fs'%(thread_cnt+1, self.addrs, t ))
 #    return asynchat.async_chat.__del__(self, *args)
 
   def collect_incoming_data(self, data):
@@ -264,6 +281,7 @@ class MainServerSocket(asyncore.dispatcher):
         time.sleep(1)
       continue
     self.listen(5)
+    print('listening on port %d'%(port))
   def handle_accept(self):
     newSocket, address = self.accept( )
 #    print("Connected from", str(address))
