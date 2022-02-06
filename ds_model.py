@@ -20,17 +20,12 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 # np.random.seed(1080)
 
 import numpy as np
-#from keras.preprocessing.text import Tokenizer
-#from keras.preprocessing.sequence import pad_sequences
-#from keras.utils import to_categorical
-#from keras.layers import (
-#    Dense, Input, GlobalMaxPooling1D,
-#    Conv1D, MaxPool1D, MaxPooling1D, Embedding,
-#    Dropout, Flatten, Convolution1D, BatchNormalization, Concatenate, Activation
-#)
+
 try:
+    from tensorflow.keras.models import load_model
     from tensorflow.keras.models import Model
 except:
+    from keras.models import load_model
     from keras.models import Model
 
 
@@ -40,15 +35,19 @@ def deepspam_load(path="model"):
     global wordmap
     global model
     print('Loading Model...')
-    config=json.load(open(path+"/model.config","rt"))
-    model = Model.from_config(config)
-    model.load_weights(path+"/model.weights")
-####weights=pickle.load(open("model.weights", "rb"))
-#model.set_weights(weights)
     try:
-        wordmap=pickle.load(open(path+"/model.wordmap-py3", "rb"))
+        # new tf2 format:
+        model=load_model(path)
+        wordmap=pickle.load(open(path+"/model.wordmap", "rb"))
     except:
-        wordmap=pickle.load(open(path+"/model.wordmap-py2", "rb"))
+        # old json+h5 format:
+        config=json.load(open(path+"/model.config","rt"))
+        model = Model.from_config(config)
+        model.load_weights(path+"/model.weights")
+        try:
+            wordmap=pickle.load(open(path+"/model.wordmap-py3", "rb"))
+        except:
+            wordmap=pickle.load(open(path+"/model.wordmap-py2", "rb"))
 #wordmap=[]
     print("MODEL loaded! (%d words)"%(len(wordmap)))
     return wordmap
@@ -57,7 +56,7 @@ def deepspam_exit():
     pass
 
 
-def deepspam_test(vtokens):
+def deepspam_test(vtokens,verbose=1):
 #    print(" ".join(vtokens))
     data = np.zeros((1, MAX_SEQUENCE_LENGTH), dtype='int32')
     j=0
@@ -69,9 +68,12 @@ def deepspam_test(vtokens):
             break
 
 #    print("Predict:")
-    classes = model.predict(data, batch_size=1, verbose=1)
+    classes = model.predict(data, batch_size=1, verbose=verbose)
     res=classes[0][0]*100.0/(classes[0][0]+classes[0][1])
+    if res>=0 and res<=100: return res
+    print("Predict: %f - %f"%(classes[0][0],classes[0][1]))
+    return 50.0
 #    res+=0.1
 #    print(res)
-    return res
+#    return res
 
