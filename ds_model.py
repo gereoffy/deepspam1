@@ -22,11 +22,11 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 import numpy as np
 
 try:
-    from tensorflow.keras.models import load_model
-    from tensorflow.keras.models import Model
+    from tensorflow.keras.models import load_model,Model
+    from tensorflow.keras.backend import clear_session,get_session
 except:
-    from keras.models import load_model
-    from keras.models import Model
+    from keras.models import load_model,Model
+    from keras.backend import clear_session,get_session
 
 
 MAX_SEQUENCE_LENGTH = 100
@@ -68,7 +68,12 @@ def deepspam_test(vtokens,verbose=1):
             break
 
 #    print("Predict:")
-    classes = model.predict(data, batch_size=1, verbose=verbose)
+#    classes = model.predict(data, batch_size=1, verbose=verbose)
+#model(x, training=False)
+    classes = model(data, training=False)
+#    print(classes)
+
+#    clear_session()
     res=classes[0][0]*100.0/(classes[0][0]+classes[0][1])
     if res>=0 and res<=100: return res
     print("Predict: %f - %f"%(classes[0][0],classes[0][1]))
