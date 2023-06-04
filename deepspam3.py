@@ -11,12 +11,13 @@
 ###
 
 
-import asyncore, asynchat, socket
+#import asyncore, asynchat, socket
 import ppymilterbase
 import logging
 import binascii
 import struct
 import time
+import traceback
 
 try:
   from io import BytesIO
@@ -194,7 +195,8 @@ MILTER_LEN_BYTES = 4  # from sendmail's include/libmilter/mfdef.h
 
 thread_cnt=0
 
-class SecondaryServerSocket(asynchat.async_chat):
+#class SecondaryServerSocket(asynchat.async_chat):
+class SecondaryServerSocket():
 #  def __init__(self, *args):
   def __init__(self, sock, addr):
     global thread_cnt
@@ -268,30 +270,62 @@ class SecondaryServerSocket(asynchat.async_chat):
 
 
 
-class MainServerSocket(asyncore.dispatcher):
-  def __init__(self, port):
-    print('initing MSS')
-    asyncore.dispatcher.__init__(self)
-    self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
+
+import asyncio
+
+async def handle_milter(reader, writer):
+
+    global thread_cnt
+    thread_cnt+=1
+    t0=time.time()
+
+    addr = writer.get_extra_info('peername')
+    addrs=str(addr[0])+":"+str(addr[1])
+    print('%3d  %22s  Connect'%(thread_cnt, addrs) )
+
+    milter_dispatcher = ppymilterbase.PpyMilterDispatcher(MyHandler,context=addrs)
+
     while True:
       try:
-        self.bind(('',port))
+#        print("# waiting...")
+        data = await reader.readexactly(4)
+        packetlen = int(struct.unpack('!I', data)[0])
+#        print("# pktlen=",packetlen)
+        data = await reader.readexactly(packetlen)
+#        print("# len(data)=",len(data))
+        response = milter_dispatcher.Dispatch(data)
+        if response:
+          if type(response) != list: response=[response]
+          for r in response:
+            if isinstance(r, str): r=r.encode()
+#            print("# len(response)=",len(r))
+            writer.write(struct.pack('!I', len(r))+r)
+            await writer.drain()
+#      except ppymilterbase.PpyMilterCloseConnection as e:
+#        print("ppymilterbase.PpyMilterCloseConnection!!!")
+#        break # close
+      except Exception as ex:
+#        print("Exception!!!",traceback.format_exc())
+        print("Exception!!!",repr(ex))
         break
-      except:
-        time.sleep(1)
-      continue
-    self.listen(5)
-    print('listening on port %d'%(port))
-  def handle_accept(self):
-    newSocket, address = self.accept( )
-#    print("Connected from", str(address))
-    SecondaryServerSocket(newSocket,address)
+
+#    print("# Close the connection")
+    writer.close()
+    await writer.wait_closed()
+
+    thread_cnt-=1
+    t=time.time()-t0
+    print('%3d  %22s  Done   %6.3fs'%(thread_cnt+1, addrs, t ))
 
 
-logging.basicConfig(level=logging.DEBUG,
-                      format='%(asctime)s %(levelname)s %(message)s',
-                      datefmt='%Y-%m-%d@%H:%M:%S')
+async def main():
+    server = await asyncio.start_server(handle_milter, '127.0.0.1', 1081)
 
-MainServerSocket(1080)
-asyncore.loop()
+    addrs = ', '.join(str(sock.getsockname()) for sock in server.sockets)
+    print(f'Serving on {addrs}')
+
+    async with server:
+        await server.serve_forever()
+
+asyncio.run(main())
 
