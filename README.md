@@ -3,6 +3,9 @@ INSTALL
 A hasznalathoz eleg csak a milter modult (deepspam3.py) futtatni egy szerveren.
 A parameterek egyelore bele vannak drotozva, ami lenyeges az a socket, by default a 1080-as TCP porton figyel.
 
+A magyar nyelvu spamszuro model letoltheto innen: http://thot.banki.hu/deepspam/model-v90.tgz
+(kitomorites utan at kell nevezni vagy symlinkelni a konyvtarat model/ nevure)
+
 DEPENDENCY:
 - Python 3.6+  (3.8/3.10 gyakran tesztelve)
 - tensorflow 2.x
