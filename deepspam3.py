@@ -10,11 +10,9 @@
 ### Valoszinuleg csak python3-al mukodik, bar talan atirhato py2-re is, ha van ra igeny.
 ###
 
-
-#import asyncore, asynchat, socket
+import asyncio
 import ppymilterbase
 import logging
-import binascii
 import struct
 import time
 import traceback
@@ -88,8 +86,6 @@ def do_eml(msg,addr):
     return "dunno %d%%"%(res)
 
 ############################################################################################################################################
-
-
 
 class MyHandler(ppymilterbase.PpyMilter):
 
@@ -187,91 +183,7 @@ class MyHandler(ppymilterbase.PpyMilter):
 
 
 
-
-
-
-
-MILTER_LEN_BYTES = 4  # from sendmail's include/libmilter/mfdef.h
-
 thread_cnt=0
-
-#class SecondaryServerSocket(asynchat.async_chat):
-class SecondaryServerSocket():
-#  def __init__(self, *args):
-  def __init__(self, sock, addr):
-    global thread_cnt
-    thread_cnt+=1
-    self.t0=time.time()
-    self.addrs=addr[0]+":"+str(addr[1])
-#    print('initing SSS -> %2d      %s'%(thread_cnt,str(addr)))
-    print('%3d  %22s  Connect'%(thread_cnt, self.addrs) )
-
-#    asynchat.async_chat.__init__(self, *args)
-    asynchat.async_chat.__init__(self, sock)
-#    self.ip,self.port=addr
-    self.__milter_dispatcher = ppymilterbase.PpyMilterDispatcher(MyHandler,context=self.addrs)
-#    self.__milter_dispatcher = ppymilterbase.PpyMilterDispatcher(MyHandler)
-    self.data = None
-    self.set_terminator(MILTER_LEN_BYTES)
-    self.milterstate=False
-#    self.found_terminator = self.read_packetlen
-
-
-  def __del__(self, *args):
-    global thread_cnt
-    thread_cnt-=1
-    t=time.time()-self.t0
-#    print('freeing SSS -> %3d   time: %6.3f'%(thread_cnt,t))
-    print('%3d  %22s  Done   %6.3fs'%(thread_cnt+1, self.addrs, t ))
-#    return asynchat.async_chat.__del__(self, *args)
-
-  def collect_incoming_data(self, data):
-    if self.data==None:
-      self.data=data
-    else:
-      self.data+=data
-#    print("incoming: %d/%d"%(len(data),len(self.data)))
-
-  def found_terminator(self):
-    if not self.milterstate:
-      # read packet len:
-      packetlen = int(struct.unpack('!I', self.data)[0])
-      self.data = None
-      self.milterstate=True
-      self.set_terminator(packetlen)
-      return
-    # read packet data:
-    inbuff = self.data
-    self.data = None
-    self.milterstate=False
-    self.set_terminator(MILTER_LEN_BYTES)
-    # process milter request:
-#    print('  <<< ', binascii.b2a_qp(inbuff[:60]))
-    try:
-      response = self.__milter_dispatcher.Dispatch(inbuff)
-    except ppymilterbase.PpyMilterCloseConnection as e:
-#      print('Closing connection: ', str(e))
-      return self.handle_close()
-
-    if response:
-      if type(response) != list:
-        response=[response]
-      for r in response:
-        if isinstance(r, str):
-          r=r.encode()
-#        print('  >>> ', binascii.b2a_qp(r))
-        self.push(struct.pack('!I', len(r))+r)
-#    else:
-#      print('  >>> None!')
-
-#  def handle_close(self):
-#    print("Disconnected!")
-#    self.close( )
-
-
-
-
-import asyncio
 
 async def handle_milter(reader, writer):
 
@@ -313,19 +225,24 @@ async def handle_milter(reader, writer):
     writer.close()
     await writer.wait_closed()
 
-    thread_cnt-=1
     t=time.time()-t0
+    thread_cnt-=1
     print('%3d  %22s  Done   %6.3fs'%(thread_cnt+1, addrs, t ))
 
 
 async def main():
-    server = await asyncio.start_server(handle_milter, '127.0.0.1', 1081)
+    server = await asyncio.start_server(handle_milter, '127.0.0.1', 1080)
 
     addrs = ', '.join(str(sock.getsockname()) for sock in server.sockets)
     print(f'Serving on {addrs}')
 
     async with server:
         await server.serve_forever()
+
+
+logging.basicConfig(level=logging.DEBUG,
+                      format='%(asctime)s %(levelname)s %(message)s',
+                      datefmt='%Y-%m-%d@%H:%M:%S')
 
 asyncio.run(main())
 
